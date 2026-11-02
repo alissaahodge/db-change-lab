@@ -46,6 +46,8 @@ jobs:
       - run: python -m pytest tests -q
       - run: npm ci
         working-directory: frontend
+      - run: npm run format:check
+        working-directory: frontend
       - run: npm run build
         working-directory: frontend
       - name: Build and start local application

@@ -1,53 +1,107 @@
+"""API behavior tests using fake database connections unless stated otherwise."""
 import importlib
 import time
 from unittest.mock import MagicMock
+
 import psycopg
-import pytest
 from fastapi.testclient import TestClient
 
 module = importlib.import_module('backend.app')
 client = TestClient(module.app)
 
+
 def test_cross_origin_and_rebinding_are_rejected():
-    assert client.post('/api/connections/test', json={}, headers={'origin':'https://other.example'}).status_code == 403
-    assert client.get('/api/health', headers={'host':'other.example'}).status_code == 403
+    """Reject untrusted Origin and Host headers before processing request bodies."""
+    response = client.post(
+        '/api/connections/test', json={}, headers={'origin': 'https://other.example'}
+    )
+    assert response.status_code == 403
+    assert client.get('/api/health', headers={'host': 'other.example'}).status_code == 403
+
 
 def test_secrets_are_not_echoed_on_connection_failure(monkeypatch):
-    def fail(_): raise psycopg.OperationalError('secret-value backend details')
+    """Return a useful connection error without leaking driver details or credentials.
+
+    Args:
+        monkeypatch: Pytest fixture used to replace the database connection function
+            with one that raises a driver error containing sensitive text.
+    """
+    def fail(_):
+        raise psycopg.OperationalError('secret-value backend details')
+
     monkeypatch.setattr(module, 'connect', fail)
-    r=client.post('/api/connections/test', json=dict(host='localhost', user='lab', dbname='lab', password='secret-value', sslmode='disable'))
-    assert r.status_code == 400
-    assert 'secret-value' not in r.text
-    assert 'backend details' not in r.text
+    response = client.post('/api/connections/test', json={
+        'host': 'localhost',
+        'user': 'lab',
+        'dbname': 'lab',
+        'password': 'secret-value',
+        'sslmode': 'disable',
+    })
+    assert response.status_code == 400
+    assert 'secret-value' not in response.text
+    assert 'backend details' not in response.text
+
 
 def test_connection_is_read_only_and_credentials_are_session_only(monkeypatch):
-    conn = MagicMock()
-    conn.execute.return_value.fetchone.return_value=('17.0',)
-    conn.execute.return_value.fetchall.return_value=[('public','orders')]
-    context=MagicMock()
-    context.__enter__.return_value=conn
-    monkeypatch.setattr(module, 'connect', lambda _:context)
-    r=client.post('/api/connections/test', json=dict(host='localhost', user='lab', dbname='lab', password='secret-value'))
-    assert r.status_code == 200
-    data=r.json()
-    assert data['tables']==[{'schema':'public','name':'orders'}]
+    """Inspect a connection read-only and return a session ID without its password.
+
+    Args:
+        monkeypatch: Pytest fixture used to substitute a fake successful PostgreSQL
+            connection, so this test does not require a running database.
+
+    The response should list visible tables, and neither it nor experiment history
+    should contain the submitted password.
+    """
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = ('17.0',)
+    connection.execute.return_value.fetchall.return_value = [('public', 'orders')]
+    context = MagicMock()
+    context.__enter__.return_value = connection
+    monkeypatch.setattr(module, 'connect', lambda _: context)
+
+    response = client.post('/api/connections/test', json={
+        'host': 'localhost',
+        'user': 'lab',
+        'dbname': 'lab',
+        'password': 'secret-value',
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data['tables'] == [{'schema': 'public', 'name': 'orders'}]
     assert data['connection_id']
-    assert 'secret-value' not in r.text
-    assert conn.execute.call_args_list[0].args[0]=='SET default_transaction_read_only = on'
+    assert 'secret-value' not in response.text
+    assert connection.execute.call_args_list[0].args[0] == (
+        'SET default_transaction_read_only = on'
+    )
     assert 'secret-value' not in client.get('/api/experiments').text
     module.sessions.pop(data['connection_id'])
 
+
 def test_custom_target_requires_explicit_permission():
-    assert client.post('/api/experiments', json={'connection_id':'unknown'}).status_code == 400
+    """Reject a custom connection ID unless temporary-schema permission is supplied."""
+    response = client.post('/api/experiments', json={'connection_id': 'unknown'})
+    assert response.status_code == 400
+
 
 def test_expired_connection_is_rejected():
-    module.sessions['expired']=(time.monotonic()-1, {})
-    r=client.post('/api/experiments', json={'connection_id':'expired','allow_test_schema':True})
-    assert r.status_code == 409
+    """Reject and remove an expired session inserted into the in-memory session map."""
+    module.sessions['expired'] = (time.monotonic() - 1, {})
+    response = client.post('/api/experiments', json={
+        'connection_id': 'expired',
+        'allow_test_schema': True,
+    })
+    assert response.status_code == 409
     assert 'expired' not in module.sessions
 
+
 def test_missing_lab_returns_actionable_error(monkeypatch):
+    """Explain how to configure a database when no default lab host is available.
+
+    Args:
+        monkeypatch: Pytest fixture used to remove LAB_DB_HOST from this test's
+            environment without changing the caller's environment permanently.
+    """
     monkeypatch.delenv('LAB_DB_HOST', raising=False)
-    r=client.post('/api/experiments', json={})
-    assert r.status_code==409
-    assert 'Docker Compose' in r.json()['detail']
+    response = client.post('/api/experiments', json={})
+    assert response.status_code == 409
+    assert 'Docker Compose' in response.json()['detail']
