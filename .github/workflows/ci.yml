@@ -1,0 +1,62 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Generate ephemeral database credentials
+        run: |
+          python - <<'PY'
+          import os, secrets
+          password = secrets.token_urlsafe(32)
+          print('::add-mask::' + password)
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('LAB_DB_PASSWORD=' + password + '\n')
+              env.write('LAB_TEST_DSN=postgresql://lab:' + password + '@127.0.0.1:5432/lab\n')
+          PY
+      - name: Start disposable integration database
+        run: |
+          docker run -d --name ci-postgres \
+            -e POSTGRES_USER=lab -e POSTGRES_DB=lab \
+            -e POSTGRES_PASSWORD="$LAB_DB_PASSWORD" \
+            -p 127.0.0.1:5432:5432 \
+            --health-cmd "pg_isready -U lab" \
+            --health-interval 2s --health-timeout 3s --health-retries 30 \
+            postgres:17-alpine
+          for attempt in $(seq 1 60); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' ci-postgres)" = healthy ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest tests -q
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Build and start local application
+        run: docker compose up --build -d --wait --wait-timeout 90
+      - name: Verify complete application workflow
+        run: python scripts/smoke.py
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100
+      - name: Stop local application
+        if: always()
+        run: |
+          docker compose down -v
+          docker rm -f ci-postgres || true
