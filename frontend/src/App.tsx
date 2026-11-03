@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import type { Experiment, ConnectionResult } from './types';
 import { ExperimentsPage } from './pages/ExperimentsPage';
@@ -33,33 +33,47 @@ export default function App() {
   const [allowSchema, setAllowSchema] = useState(false);
   const [plan, setPlan] = useState(false);
 
+  // A mutation invalidates snapshots requested before its history update.
+  const historyRevision = useRef(0);
+
   useEffect(() => {
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+
     async function refresh() {
+      const requestedRevision = historyRevision.current;
       try {
         const [healthResponse, experimentHistory] = await Promise.all([
-          api<{ lab_configured: boolean }>('health'),
-          api<Experiment[]>('experiments'),
+          api<{ lab_configured: boolean }>('health', undefined, controller.signal),
+          api<Experiment[]>('experiments', undefined, controller.signal),
         ]);
         if (active) {
           setHealth(healthResponse.lab_configured);
-          setRuns(experimentHistory);
+          if (requestedRevision === historyRevision.current) {
+            setRuns(experimentHistory);
+          }
           setError((previous) =>
             previous.startsWith('Cannot reach the local backend.') ? '' : previous,
           );
         }
       } catch {
-        if (active)
+        if (active) {
           setError(
             'Cannot reach the local backend. Start the application and try again.',
           );
+        }
+      } finally {
+        // Schedule after completion so slow requests never overlap.
+        if (active) timer = setTimeout(() => void refresh(), 1500);
       }
     }
+
     void refresh();
-    const timer = setInterval(() => void refresh(), 1500);
     return () => {
       active = false;
-      clearInterval(timer);
+      clearTimeout(timer);
+      controller.abort();
     };
   }, []);
 
@@ -69,6 +83,7 @@ export default function App() {
     runs.some((experiment) => ['queued', 'running'].includes(experiment.state));
 
   async function start() {
+    historyRevision.current += 1;
     setSending(true);
     setError('');
     try {
@@ -78,7 +93,9 @@ export default function App() {
         allow_test_schema: target === 'custom' && allowSchema,
       });
       setSelected(createdExperiment.id);
-      setRuns(await api('experiments'));
+      const experimentHistory = await api<Experiment[]>('experiments');
+      historyRevision.current += 1;
+      setRuns(experimentHistory);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -122,7 +139,7 @@ export default function App() {
               onClick={() => setTab(t)}
               className={tab === t ? 'nav active' : 'nav'}
             >
-              <span>{['◈', '⇄', '≡'][i]}</span>
+              <span aria-hidden="true">{['◈', '⇄', '≡'][i]}</span>
               {t}
             </button>
           ))}

@@ -5,12 +5,12 @@ import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-BASE = 'http://127.0.0.1:8000'
+BASE = os.getenv('LAB_APP_URL', 'http://127.0.0.1:8000')
 
 
 def request(path, body=None):
     payload = json.dumps(body).encode() if body is not None else None
-    req = Request(BASE + path, data=payload, headers={'Content-Type':'application/json'})
+    req = Request(BASE + path, data=payload, headers={'Content-Type':'application/json', 'Origin': BASE})
     with urlopen(req, timeout=10) as response:
         return json.load(response)
 

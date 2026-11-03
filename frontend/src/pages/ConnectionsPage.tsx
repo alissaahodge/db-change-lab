@@ -48,6 +48,7 @@ export function ConnectionsPage({
             }
             <input
               required
+              disabled={testing}
               type={key === 'password' ? 'password' : key === 'port' ? 'number' : 'text'}
               autoComplete={key === 'password' ? 'new-password' : 'off'}
               value={conn[key]}
@@ -68,6 +69,7 @@ export function ConnectionsPage({
         <label>
           TLS
           <select
+            disabled={testing}
             value={conn.sslmode}
             onChange={(e) => {
               setConn({ ...conn, sslmode: e.target.value });

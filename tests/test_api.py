@@ -105,3 +105,34 @@ def test_missing_lab_returns_actionable_error(monkeypatch):
     response = client.post('/api/experiments', json={})
     assert response.status_code == 409
     assert 'Docker Compose' in response.json()['detail']
+
+
+def test_validation_errors_do_not_echo_submitted_passwords():
+    """Reject a malformed password value without returning its contents in the 422 response."""
+    response = client.post('/api/connections/test', json={
+        'host': 'localhost',
+        'user': 'lab',
+        'dbname': 'lab',
+        'password': {'unexpected': 'private-submitted-value'},
+    })
+    assert response.status_code == 422
+    assert 'private-submitted-value' not in response.text
+    assert 'input' not in response.json()['detail'][0]
+
+
+def test_missing_lab_password_is_reported_as_configuration_error(monkeypatch):
+    """Use monkeypatch to simulate a host configured without its required password."""
+    monkeypatch.setenv('LAB_DB_HOST', 'localhost')
+    monkeypatch.delenv('LAB_DB_PASSWORD', raising=False)
+    assert not client.get('/api/health').json()['lab_configured']
+    assert client.post('/api/experiments', json={}).status_code == 409
+
+
+def test_invalid_lab_port_returns_actionable_error(monkeypatch):
+    """Use monkeypatch to supply an invalid port; reject it before scheduling database work."""
+    monkeypatch.setenv('LAB_DB_HOST', 'localhost')
+    monkeypatch.setenv('LAB_DB_PASSWORD', 'test-input')
+    monkeypatch.setenv('LAB_DB_PORT', 'not-a-port')
+    response = client.post('/api/experiments', json={})
+    assert response.status_code == 409
+    assert 'LAB_DB_PORT' in response.json()['detail']

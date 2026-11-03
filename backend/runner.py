@@ -88,8 +88,11 @@ def run(config, settings, progress):
                     "index_sql": 'CREATE INDEX ON orders (customer_id, created_at DESC);',
                     "methodology": 'Fixed seed 42; identical generated rows and task sequence; per-connection warmup; client-side statement latency; transactions rolled back; baseline precedes candidate. Throughput includes connection setup and rollback. No durable write/commit throughput measured. Cache and order effects remain; repeat experiments before drawing conclusions.'}
         finally:
-            progress('Cleaning up temporary schema')
-            admin.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
+            try:
+                progress('Cleaning up temporary schema')
+            finally:
+                # A history/progress failure must not prevent database cleanup.
+                admin.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
 
 def rng_id():

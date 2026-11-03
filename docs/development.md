@@ -24,6 +24,18 @@ LAB_TEST_DSN='postgresql://lab:password@localhost:5432/lab' python -m pytest tes
 
 The GitHub Actions workflow provisions PostgreSQL 17 and runs the integration test, API/unit suite, and frontend build. It also builds the Docker Compose app and runs `scripts/smoke.py` to verify the packaged frontend, an API-driven background experiment, connection testing, and an experiment on an explicitly selected test connection.
 
+## Frontend development server
+
+To see frontend edits as you work, keep FastAPI running on port `8000` and start Vite in another terminal:
+
+```bash
+npm run dev --prefix frontend
+```
+
+Open [localhost:5173](http://localhost:5173). Vite serves the frontend and forwards `/api` requests to FastAPI. For the Docker-based setup, start `docker compose up --build` first; it supplies the backend and lab database while Vite serves your local frontend files.
+
+The build command still produces `frontend/dist`, which FastAPI serves in the packaged app.
+
 ## Frontend formatting
 
 From the repository root:
@@ -31,6 +43,7 @@ From the repository root:
 ```bash
 npm run format --prefix frontend
 npm run format:check --prefix frontend
+npm test --prefix frontend
 ```
 
 Prettier formats TypeScript, JSX, CSS, HTML, and JSON. CI checks formatting before building the frontend.

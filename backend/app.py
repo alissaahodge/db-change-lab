@@ -10,6 +10,7 @@ from typing import Literal
 import psycopg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
 from .runner import connect, run
@@ -55,9 +56,23 @@ async def local_origin(request: Request, call_next):
     response.headers['Cache-Control'] = 'no-store'
     return response
 
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, error: RequestValidationError):
+    # Pydantic's default errors can include submitted values, including passwords.
+    errors = [
+        {key: item[key] for key in ('loc', 'msg', 'type')}
+        for item in error.errors()
+    ]
+    return JSONResponse({'detail': errors}, status_code=422)
+
+
+def lab_configured():
+    return bool(os.getenv('LAB_DB_HOST') and os.getenv('LAB_DB_PASSWORD'))
+
+
 @app.get('/api/health')
 def health():
-    return {'ok': True, 'lab_configured': bool(os.getenv('LAB_DB_HOST'))}
+    return {'ok': True, 'lab_configured': lab_configured()}
 
 @app.post('/api/connections/test')
 def test_connection(body: Connection):
@@ -111,9 +126,15 @@ def create_experiment(body: Experiment):
                 raise HTTPException(409, 'Connection expired. Test your connection again.')
             config = session[1].copy()
     else:
-        if not os.getenv('LAB_DB_HOST'):
+        if not lab_configured():
             raise HTTPException(409, 'Start the dedicated PostgreSQL lab using Docker Compose first, or select a verified test connection.')
-        config = dict(host=os.environ['LAB_DB_HOST'], port=int(os.getenv('LAB_DB_PORT','5432')), dbname=os.getenv('LAB_DB_NAME','lab'), user=os.getenv('LAB_DB_USER','lab'), password=os.environ['LAB_DB_PASSWORD'], sslmode=os.getenv('LAB_DB_SSLMODE','disable'))
+        try:
+            port = int(os.getenv('LAB_DB_PORT', '5432'))
+            if not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            raise HTTPException(409, 'LAB_DB_PORT must be a number from 1 to 65535.') from None
+        config = dict(host=os.environ['LAB_DB_HOST'], port=port, dbname=os.getenv('LAB_DB_NAME','lab'), user=os.getenv('LAB_DB_USER','lab'), password=os.environ['LAB_DB_PASSWORD'], sslmode=os.getenv('LAB_DB_SSLMODE','disable'))
     if not busy.acquire(blocking=False):
         raise HTTPException(409, 'An experiment is already running.')
     id = uuid.uuid4().hex

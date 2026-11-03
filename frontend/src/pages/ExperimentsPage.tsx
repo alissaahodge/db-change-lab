@@ -119,7 +119,7 @@ export function ExperimentsPage({
           </div>
           <div className="change">
             <span className="eyebrow">PROPOSED CHANGE</span>
-            <pre>CREATE INDEX ON orders{'\rowCount'} (customer_id, created_at DESC);</pre>
+            <pre>CREATE INDEX ON orders{'\n'} (customer_id, created_at DESC);</pre>
             <span className="pill">B-tree</span>{' '}
             <span className="hint">Composite index</span>
           </div>

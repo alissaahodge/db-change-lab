@@ -4,7 +4,7 @@
 
 DB Change Lab is an interactive tool for exploring how an index affects a PostgreSQL workload. It runs the same set of operations before and after adding an index, then shows what changed in query speed, throughput, and storage.
 
-The first version uses generated orders data, so you can try it without supplying customer records.
+Experiments use generated orders data, so you can try the app without supplying customer records.
 
 ![Experiment workspace](docs/experiments.png)
 
@@ -28,6 +28,8 @@ The setup script creates a local database password in an ignored `.env` file. Do
 3. Compare latency, operations per second, index size, and build time. Expand **Execution plans** to see how PostgreSQL ran the lookup.
 4. Use **Recent experiments** to revisit a previous result.
 
+Before interpreting a result, read [how measurements work](docs/benchmarking.md). Write operations are rolled back, and run order can affect timings.
+
 ## Connect a test database
 
 Open **Connections**, enter your PostgreSQL connection details, and click **Test connection**. This checks access and lists visible tables; it does not start an experiment.
@@ -37,27 +39,3 @@ To run experiments there, mark it as a test database and choose **Use for experi
 Verified credentials stay in backend memory for a 30-minute session and are never saved to disk. See the [connection guide](docs/development.md#connecting-to-a-database-from-docker) for Docker hostnames and TLS settings.
 
 ![Database connection form](docs/connections.png)
-
-## What this version covers
-
-This first increment supports one orders dataset and one composite index: `(customer_id, created_at DESC)`. You can change the data size and workload settings, but custom schemas, queries, and indexes come later.
-
-Treat results as evidence to explore, not a prediction of production performance. Inserts are rolled back, so write timings exclude durable commits. The baseline always runs first, so cache effects can influence the comparison. Read [how measurements work](docs/benchmarking.md) before interpreting the results.
-
-The app is intended for one person running it locally. Use a dedicated test database and keep the app bound to localhost.
-
-## For contributors
-
-- **Frontend:** React, TypeScript, and Vite.
-- **Backend:** Python and FastAPI, with psycopg for PostgreSQL access.
-- **History:** SQLite, stored separately from the database being tested.
-- **Checks:** unit/API tests, a real PostgreSQL integration test, frontend formatting and build checks, and a Docker smoke test.
-
-See the [development guide](docs/development.md) for setup, tests, formatting commands, and architecture. Check the latest [CI results](https://github.com/alissaahodge/db-change-lab/actions).
-
-## Next increments
-
-- Repeat trials and alternate run order to make comparisons more reliable.
-- Support custom schemas, workloads, and candidate indexes.
-- Improve plan comparisons and add result export.
-- Add cancellation, more detailed progress, and recovery after interruptions.
