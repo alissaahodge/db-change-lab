@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: lab
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: ${LAB_DB_PASSWORD}
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U lab]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  app:
+    build: .
+    ports:
+      - '127.0.0.1:8000:8000'
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    environment:
+      LAB_DB_HOST: postgres
+      LAB_DB_NAME: lab
+      LAB_DB_USER: lab
+      LAB_DB_PASSWORD: ${LAB_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - experiment-data:/app/data
+volumes:
+  postgres-data:
+  experiment-data:
