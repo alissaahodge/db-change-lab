@@ -1,3 +1,5 @@
+import { PrimaryButton } from '../components/PrimaryButton';
+import { ErrorMessage } from '../components/ErrorMessage';
 import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { ConnectionForm, ConnectionResult } from '../types';
 
@@ -83,19 +85,15 @@ export function ConnectionsPage({
             <option value="disable">Disabled (local development)</option>
           </select>
         </label>
-        <button className="primary" disabled={testing}>
-          {testing ? 'Testing connection…' : 'Test connection'} <span>↗</span>
-        </button>
+        <PrimaryButton type="submit" disabled={testing}>
+          {testing ? 'Testing connection…' : 'Test connection'}
+        </PrimaryButton>
         <p className="hint">
           The password field is cleared after testing. Verified credentials stay only in
           backend memory for up to 30 minutes and are never saved to disk. TLS
           verification requires a trusted certificate configured on the backend.
         </p>
-        {connectionError && (
-          <p role="alert" className="error">
-            {connectionError}
-          </p>
-        )}
+        <ErrorMessage message={connectionError} />
       </form>
       <section className="panel schema">
         <h2>{connection ? 'Connection verified' : 'Your schema, at a glance.'}</h2>
@@ -116,16 +114,15 @@ export function ConnectionsPage({
               This is a test database. Allow creating and dropping temporary benchmark
               schemas.
             </label>
-            <button
-              className="primary"
+            <PrimaryButton
               disabled={!allowSchema}
               onClick={() => {
                 setTarget('custom');
                 setTab('Experiments');
               }}
             >
-              Use for experiments <span>↗</span>
-            </button>
+              Use for experiments
+            </PrimaryButton>
             <h3>
               Visible tables <span className="hint">(up to 100)</span>
             </h3>
