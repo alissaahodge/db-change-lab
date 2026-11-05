@@ -38,9 +38,6 @@ def run(config, settings, progress):
     with connect(config) as admin:
         admin.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
         try:
-            admin.execute(sql.SQL('CREATE TABLE {} (id bigint PRIMARY KEY, customer_id int NOT NULL, status text NOT NULL, total_cents int NOT NULL, created_at timestamp NOT NULL)').format(table))
-            admin.execute(sql.SQL("INSERT INTO {} SELECT i, 1+(i%%1000), CASE WHEN i%%5=0 THEN 'pending' ELSE 'completed' END, 100+(i%%10000), timestamp '2026-01-01' + (i%%365)*interval '1 day' FROM generate_series(1,%s) i").format(table), (rows,))
-            admin.execute(sql.SQL('ANALYZE {}').format(table))
             read = sql.SQL('SELECT id, total_cents, created_at FROM {} WHERE customer_id=%s ORDER BY created_at DESC LIMIT 20').format(table)
 
             def phase(label):
@@ -71,22 +68,69 @@ def run(config, settings, progress):
                 seconds = time.perf_counter()-started
                 measurements = [x for part in parts for x in part]
                 plan = admin.execute(sql.SQL('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ') + read, (1,)).fetchone()[0][0]
-                return {"all": summarize([v for _,v in measurements], seconds),
-                        "reads": summarize([v for w,v in measurements if not w], seconds) if any(not w for w,_ in measurements) else None,
-                        "writes": summarize([v for w,v in measurements if w], seconds) if any(w for w,_ in measurements) else None,
-                        "elapsed_seconds": round(seconds, 3), "plan": plan}
+                return measurements, seconds, plan
 
-            baseline = phase('Measuring baseline')
-            progress('Building composite index')
-            started = time.perf_counter()
-            admin.execute(sql.SQL('CREATE INDEX orders_customer_created_idx ON {} (customer_id, created_at DESC)').format(table))
-            build_ms = (time.perf_counter()-started)*1000
-            index_bytes = admin.execute('SELECT pg_relation_size(%s::regclass)', (schema+'.orders_customer_created_idx',)).fetchone()[0]
-            candidate = phase('Measuring candidate')
-            return {"baseline": baseline, "candidate": candidate, "index_bytes": index_bytes,
-                    "build_ms": round(build_ms, 3), "settings": settings,
-                    "index_sql": 'CREATE INDEX ON orders (customer_id, created_at DESC);',
-                    "methodology": 'Fixed seed 42; identical generated rows and task sequence; per-connection warmup; client-side statement latency; transactions rolled back; baseline precedes candidate. Throughput includes connection setup and rollback. No durable write/commit throughput measured. Cache and order effects remain; repeat experiments before drawing conclusions.'}
+            def report(measurements, seconds):
+                reads = [value for write, value in measurements if not write]
+                writes = [value for write, value in measurements if write]
+                return {
+                    "all": summarize([value for _, value in measurements], seconds),
+                    "reads": summarize(reads, seconds) if reads else None,
+                    "writes": summarize(writes, seconds) if writes else None,
+                    "elapsed_seconds": round(seconds, 3),
+                }
+
+            trial_count = settings.get('trials', 1)
+            trials = []
+            phases = {"baseline": [], "candidate": []}
+            builds = []
+            for number in range(1, trial_count + 1):
+                order = ["baseline", "candidate"] if number % 2 else ["candidate", "baseline"]
+                trial = {"order": order}
+                prefix = f'Trial {number}/{trial_count}: ' if trial_count > 1 else ''
+                for kind in order:
+                    progress(prefix + f'Preparing {kind} orders')
+                    admin.execute(sql.SQL('CREATE TABLE {} (id bigint PRIMARY KEY, customer_id int NOT NULL, status text NOT NULL, total_cents int NOT NULL, created_at timestamp NOT NULL)').format(table))
+                    admin.execute(sql.SQL("INSERT INTO {} SELECT i, 1+(i%%1000), CASE WHEN i%%5=0 THEN 'pending' ELSE 'completed' END, 100+(i%%10000), timestamp '2026-01-01' + (i%%365)*interval '1 day' FROM generate_series(1,%s) i").format(table), (rows,))
+                    admin.execute(sql.SQL('ANALYZE {}').format(table))
+                    if kind == "candidate":
+                        progress(prefix + 'Building composite index')
+                        started = time.perf_counter()
+                        admin.execute(sql.SQL('CREATE INDEX orders_customer_created_idx ON {} (customer_id, created_at DESC)').format(table))
+                        builds.append((time.perf_counter() - started) * 1000)
+                        index_bytes = admin.execute(
+                            'SELECT pg_relation_size(%s::regclass)',
+                            (schema + '.orders_customer_created_idx',),
+                        ).fetchone()[0]
+                    measurements, seconds, plan = phase(prefix + f'Measuring {kind}')
+                    phases[kind].append((measurements, seconds, plan))
+                    trial[kind] = summarize([value for _, value in measurements], seconds)
+                    admin.execute(sql.SQL('DROP TABLE {}').format(table))
+                trials.append(trial)
+
+            combined = {}
+            for kind, results in phases.items():
+                measurements = [sample for phase_samples, _, _ in results for sample in phase_samples]
+                seconds = sum(elapsed for _, elapsed, _ in results)
+                combined[kind] = report(measurements, seconds)
+                combined[kind]["plan"] = results[-1][2]
+
+            return {
+                **combined,
+                "trials": trials,
+                "index_bytes": index_bytes,
+                "build_ms": round(statistics.median(builds), 3),
+                "settings": settings,
+                "index_sql": 'CREATE INDEX ON orders (customer_id, created_at DESC);',
+                "methodology": (
+                    'Fixed seed 42; fresh identical rows per phase; identical task sequence; '
+                    'per-connection warmup; client-side statement latency; transactions rolled back. '
+                    'Phase order alternates across trials. Latencies pool samples; throughput divides '
+                    'total operations by total phase time, including connection setup and rollback. '
+                    'Build time is the median; plans and index size come from the last trial. '
+                    'Shared caches and background load can still affect results.'
+                ),
+            }
         finally:
             try:
                 progress('Cleaning up temporary schema')

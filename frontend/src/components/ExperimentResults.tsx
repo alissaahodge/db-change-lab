@@ -36,6 +36,7 @@ export function ExperimentResults({ current, plan, setPlan }: ExperimentResultsP
           <div className="result-caption">
             {format(result.settings.rows)} orders · {result.settings.clients} clients ·{' '}
             {result.settings.samples} operations / phase
+            {result.trials && ` · ${result.trials.length} trials`}
           </div>
           <div className="metrics">
             {[
@@ -120,6 +121,45 @@ export function ExperimentResults({ current, plan, setPlan }: ExperimentResultsP
               Build time <strong>{format(result.build_ms)} ms</strong>
             </span>
           </div>
+          {result.trials && result.trials.length > 1 && (
+            <section className="panel comparison">
+              <h3>Variation across trials</h3>
+              <p className="hint">
+                Each cell compares baseline → with index. The cards above pool
+                measurements across all trials.
+              </p>
+              <div className="trial-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Trial</th>
+                      <th scope="col">First phase</th>
+                      <th scope="col">Median (ms)</th>
+                      <th scope="col">p95 (ms)</th>
+                      <th scope="col">Throughput (ops/s)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.trials.map(({ order, baseline, candidate }, index) => (
+                      <tr key={index}>
+                        <th scope="row">{index + 1}</th>
+                        <td>{order[0] === 'baseline' ? 'Baseline' : 'With index'}</td>
+                        <td>
+                          {format(baseline.median_ms)} → {format(candidate.median_ms)}
+                        </td>
+                        <td>
+                          {format(baseline.p95_ms)} → {format(candidate.p95_ms)}
+                        </td>
+                        <td>
+                          {format(baseline.throughput)} → {format(candidate.throughput)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
           <section className="panel plans">
             <button
               className="disclosure"

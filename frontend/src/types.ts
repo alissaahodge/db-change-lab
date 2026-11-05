@@ -10,14 +10,26 @@ export type Phase = {
   writes: Summary | null;
   plan: Record<string, unknown>;
 };
+export type Trial = {
+  order: ('baseline' | 'candidate')[];
+  baseline: Summary;
+  candidate: Summary;
+};
 export type Result = {
+  trials?: Trial[];
   baseline: Phase;
   candidate: Phase;
   index_bytes: number;
   build_ms: number;
   index_sql: string;
   methodology: string;
-  settings: { rows: number; clients: number; samples: number; write_pct: number };
+  settings: {
+    rows: number;
+    clients: number;
+    samples: number;
+    write_pct: number;
+    trials?: number;
+  };
 };
 export type Experiment = {
   id: string;

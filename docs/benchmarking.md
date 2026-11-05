@@ -6,7 +6,8 @@
 - Throughput includes connection setup, warmup, transaction commands, and rollback. It is not simply inverse median query latency.
 - Inserts use unique temporary IDs and are **rolled back** to keep both phases on the same rows. This measures statement execution/index maintenance, **not durable commit throughput**.
 - p95 uses nearest rank. No statistical significance claim or production-speedup prediction is made.
-- Baseline always precedes candidate: cache, checkpoint, scheduling, and order effects remain. Repeat measurements before interpreting small differences. Alternating run order and multiple trials are planned.
+- Each trial starts each phase with fresh identical rows. Odd trials run baseline first and even trials run the indexed phase first. Alternation reduces systematic ordering bias, but shared caches, checkpoints, and scheduling can still affect measurements.
+- Overall latency summaries pool operation samples. Overall throughput divides total operations by total elapsed phase time. The results table shows median latency, p95 latency, and throughput for each trial. Build time is the median across candidate builds; index size and plans are from the final trial.
 - Execution plans are separately sampled for customer `1`; they do not represent every operation. `EXPLAIN ANALYZE` itself executes the query.
 - Synthetic uniform customers and correlated generated data do not reproduce a production workload's distributions or cardinalities.
 - Statement timeout is 15 seconds; lock timeout is 2 seconds. There is currently no overall job timeout/cancel control.

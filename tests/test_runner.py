@@ -10,7 +10,7 @@ def test_nearest_rank_percentile():
 def test_summary_counts_and_units():
     assert summarize([1,2,3,4], 2) == {'operations':4, 'median_ms':2.5,'p95_ms':4, 'throughput':2}
 
-@pytest.mark.parametrize('settings', [{'rows':1},{'clients':0},{'clients':17},{'samples':2001},{'write_pct':101}])
+@pytest.mark.parametrize('settings', [{'rows':1},{'clients':0},{'clients':17},{'samples':2001},{'write_pct':101},{'trials':0},{'trials':7}])
 def test_work_is_bounded(settings):
     with pytest.raises(ValidationError): Experiment(**settings)
 

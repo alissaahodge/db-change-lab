@@ -10,9 +10,22 @@ def test_real_index_experiment_and_cleanup():
     config=conninfo_to_dict(os.environ['LAB_TEST_DSN'])
     with psycopg.connect(**config) as conn:
         before=set(conn.execute("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'lab_%'").fetchall())
-    result=run(config, {'rows':10000,'clients':2,'samples':40,'write_pct':20}, lambda _:None)
-    assert result['baseline']['all']['operations']==40
-    assert result['candidate']['all']['operations']==40
+    stages = []
+    result = run(
+        config, {'rows': 10000, 'clients': 2, 'samples': 40, 'write_pct': 20, 'trials': 2},
+        stages.append,
+    )
+    assert [stage for stage in stages if 'Measuring' in stage] == [
+        'Trial 1/2: Measuring baseline', 'Trial 1/2: Measuring candidate',
+        'Trial 2/2: Measuring candidate', 'Trial 2/2: Measuring baseline',
+    ]
+    assert result['baseline']['all']['operations']==80
+    assert result['candidate']['all']['operations']==80
+    assert [trial['order'] for trial in result['trials']] == [
+        ['baseline', 'candidate'], ['candidate', 'baseline'],
+    ]
+    for trial in result['trials']:
+        assert trial['baseline']['operations'] == trial['candidate']['operations'] == 40
     assert result['index_bytes']>0
     assert result['baseline']['plan']['Plan']
     with psycopg.connect(**config) as conn:
