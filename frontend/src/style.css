@@ -748,3 +748,21 @@ footer span:first-child {
   accent-color: #426b37;
   margin-top: 5px;
 }
+
+.trial-table {
+  overflow-x: auto;
+}
+
+.trial-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.trial-table th,
+.trial-table td {
+  padding: 0.65rem 0.5rem;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid #dfe4da;
+}

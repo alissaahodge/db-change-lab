@@ -1,16 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
-import type { Experiment, ConnectionResult } from './types';
+import type { Experiment, ConnectionResult, ExperimentSettings } from './types';
 import { ExperimentsPage } from './pages/ExperimentsPage';
 import { ConnectionsPage } from './pages/ConnectionsPage';
 import { MethodologyPage } from './pages/MethodologyPage';
 
 export default function App() {
   const [tab, setTab] = useState('Experiments');
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<ExperimentSettings>({
     rows: 100000,
     clients: 4,
     samples: 200,
+    trials: 4,
     write_pct: 20,
   });
   const [runs, setRuns] = useState<Experiment[]>([]);

@@ -86,6 +86,23 @@ export function ExperimentForm({
           onChange={(e) => setSettings({ ...settings, samples: +e.target.value })}
         />
       </label>
+      <label>
+        Trials
+        <select
+          value={settings.trials ?? 1}
+          onChange={(e) => setSettings({ ...settings, trials: Number(e.target.value) })}
+        >
+          {[1, 2, 4, 6].map((count) => (
+            <option key={count} value={count}>
+              {count}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        Each trial runs both phases. More trials take longer and show how much results
+        vary.
+      </p>
       <label className="range-label">
         Workload mix{' '}
         <strong>

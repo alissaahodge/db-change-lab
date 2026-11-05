@@ -17,6 +17,8 @@ def request(path, body=None):
 
 def experiment(connection_id=None):
     settings = dict(rows=10000, clients=2, samples=40, write_pct=20)
+    if not connection_id:
+        settings['trials'] = 2
     if connection_id:
         settings.update(connection_id=connection_id, allow_test_schema=True)
     run_id = request('/api/experiments', settings)['id']
@@ -26,8 +28,10 @@ def experiment(connection_id=None):
         if job['state'] in ('failed','interrupted'):
             raise AssertionError(job['stage'])
         if job['state']=='completed':
-            assert job['result']['baseline']['all']['operations']==40
-            assert job['result']['candidate']['all']['operations']==40
+            expected_operations = settings['samples'] * settings.get('trials', 1)
+            assert job['result']['baseline']['all']['operations'] == expected_operations
+            assert job['result']['candidate']['all']['operations'] == expected_operations
+            assert len(job['result']['trials']) == settings.get('trials', 1)
             assert job['result']['index_bytes']>0
             return job['result']
         time.sleep(.5)

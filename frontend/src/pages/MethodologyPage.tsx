@@ -4,9 +4,9 @@ export function MethodologyPage() {
       <h2>What the numbers mean</h2>
       <h3>Same workload, two phases</h3>
       <p>
-        Each run creates a unique temporary schema and deterministic orders dataset. A
-        fixed random seed produces the same customer lookups and read/write sequence for
-        baseline and candidate. Only the candidate has the composite index.
+        Each run creates a unique temporary schema, with fresh generated orders for each
+        phase. A fixed random seed produces the same customer lookups and read/write
+        sequence for baseline and candidate. Only the candidate has the composite index.
       </p>
       <h3>Warmup and timing</h3>
       <p>
@@ -22,9 +22,9 @@ export function MethodologyPage() {
       </p>
       <h3>Order matters</h3>
       <p>
-        The baseline runs first, so cache and order effects can influence the candidate.
-        Repeat runs and inspect raw plans. The current version is an exploratory
-        benchmark, not a production migration approval system.
+        Trials alternate which phase runs first. The summary pools samples and the trial
+        table shows variation across runs. Shared caches and background load can still
+        affect the results. Execution plans are from the final trial.
       </p>
       <h3>Isolation and credentials</h3>
       <p>

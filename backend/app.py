@@ -38,6 +38,7 @@ class Connection(BaseModel):
 class Experiment(BaseModel):
     rows: int = Field(default=100000, ge=10000, le=1000000)
     clients: int = Field(default=4, ge=1, le=16)
+    trials: int = Field(default=1, ge=1, le=6)
     samples: int = Field(default=200, ge=20, le=2000)
     write_pct: int = Field(default=20, ge=0, le=100)
     connection_id: str | None = Field(default=None, max_length=64)
