@@ -103,32 +103,110 @@ export function ExperimentForm({
         Each trial runs both phases. More trials take longer and show how much results
         vary.
       </p>
-      <label className="range-label">
-        Workload mix{' '}
-        <strong>
-          {100 - settings.write_pct}% reads / {settings.write_pct}% writes
-        </strong>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          step="5"
-          value={settings.write_pct}
-          onChange={(e) => setSettings({ ...settings, write_pct: +e.target.value })}
-        />
+      <label>
+        Workload
+        <select
+          value={settings.custom_workload ? 'custom' : 'preset'}
+          onChange={(e) =>
+            setSettings({
+              ...settings,
+              custom_workload:
+                e.target.value === 'custom'
+                  ? {
+                      query:
+                        "SELECT id, created_at FROM orders\nWHERE status = 'pending' ORDER BY created_at DESC LIMIT 20;",
+                      index: 'CREATE INDEX ON orders (status, created_at DESC);',
+                    }
+                  : null,
+            })
+          }
+        >
+          <option value="preset">Preset order workload</option>
+          <option value="custom">Custom read query and index</option>
+        </select>
       </label>
-      <div className="mix">
-        <span style={{ width: 100 - settings.write_pct + '%' }} />
-      </div>
-      <div className="change">
-        <span className="eyebrow">PROPOSED CHANGE</span>
-        <pre>CREATE INDEX ON orders{'\n'} (customer_id, created_at DESC);</pre>
-        <span className="pill">B-tree</span> <span className="hint">Composite index</span>
-      </div>
+      {settings.custom_workload ? (
+        <div className="change">
+          <p className="hint">
+            Uses generated orders only. Select columns from orders, optionally filter one
+            column by equality and sort by one column, and include LIMIT 1–999. Columns:
+            id, customer_id, status, total_cents, created_at.
+          </p>
+          <label>
+            Read query
+            <textarea
+              rows={4}
+              maxLength={512}
+              value={settings.custom_workload.query}
+              onChange={(e) => {
+                const query = e.target.value;
+                setSettings((previous) =>
+                  previous.custom_workload
+                    ? {
+                        ...previous,
+                        custom_workload: { ...previous.custom_workload, query },
+                      }
+                    : previous,
+                );
+              }}
+            />
+          </label>
+          <label>
+            Proposed index
+            <textarea
+              rows={3}
+              maxLength={256}
+              value={settings.custom_workload.index}
+              onChange={(e) => {
+                const index = e.target.value;
+                setSettings((previous) =>
+                  previous.custom_workload
+                    ? {
+                        ...previous,
+                        custom_workload: { ...previous.custom_workload, index },
+                      }
+                    : previous,
+                );
+              }}
+            />
+          </label>
+          <p className="hint">Use CREATE INDEX ON orders with one to five columns.</p>
+        </div>
+      ) : (
+        <>
+          <label className="range-label">
+            Workload mix{' '}
+            <strong>
+              {100 - settings.write_pct}% reads / {settings.write_pct}% writes
+            </strong>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={settings.write_pct}
+              onChange={(e) => setSettings({ ...settings, write_pct: +e.target.value })}
+            />
+          </label>
+          <div className="mix">
+            <span style={{ width: 100 - settings.write_pct + '%' }} />
+          </div>
+          <div className="change">
+            <span className="eyebrow">PROPOSED CHANGE</span>
+            <pre>CREATE INDEX ON orders{'\n'} (customer_id, created_at DESC);</pre>
+            <span className="pill">B-tree</span>{' '}
+            <span className="hint">Composite index</span>
+          </div>
+        </>
+      )}
       <PrimaryButton
         onClick={() => void start()}
         disabled={
-          busy || (target === 'lab' ? health !== true : !connection || !allowSchema)
+          busy ||
+          (settings.custom_workload != null &&
+            (!settings.custom_workload.query.trim() ||
+              !settings.custom_workload.index.trim())) ||
+          (target === 'lab' ? health !== true : !connection || !allowSchema)
         }
       >
         {busy ? 'Experiment in progress…' : 'Run experiment'}

@@ -90,6 +90,7 @@ export default function App() {
     try {
       const createdExperiment = await api<{ id: string }>('experiments', {
         ...settings,
+        write_pct: settings.custom_workload ? 0 : settings.write_pct,
         connection_id: target === 'custom' ? connection?.connection_id : null,
         allow_test_schema: target === 'custom' && allowSchema,
       });

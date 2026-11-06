@@ -1,4 +1,4 @@
-"""Bounded experiments on generated data; never accepts arbitrary SQL."""
+"""Bounded experiments on generated data; executes only generated or restricted SQL."""
 import math
 import random
 import statistics
@@ -7,6 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 import psycopg
 from psycopg import sql
+from .custom import INDEX_NAME, compile_experiment
 
 
 def percentile(values, q):
@@ -29,7 +30,8 @@ def run(config, settings, progress):
     schema = 'lab_' + uuid.uuid4().hex
     table = sql.Identifier(schema, 'orders')
     rows, clients, samples = settings['rows'], settings['clients'], settings['samples']
-    write_pct = settings['write_pct']
+    custom = settings.get('custom_workload')
+    write_pct = 0 if custom else settings['write_pct']
     tasks = []
     rng = random.Random(42)
     for _ in range(samples):
@@ -38,7 +40,14 @@ def run(config, settings, progress):
     with connect(config) as admin:
         admin.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
         try:
-            read = sql.SQL('SELECT id, total_cents, created_at FROM {} WHERE customer_id=%s ORDER BY created_at DESC LIMIT 20').format(table)
+            if custom:
+                read, create_index = compile_experiment(custom['query'], custom['index'], table)
+            else:
+                read = sql.SQL('SELECT id, total_cents, created_at FROM {} WHERE customer_id=%s ORDER BY created_at DESC LIMIT 20').format(table)
+                create_index = sql.SQL('CREATE INDEX {} ON {} (customer_id, created_at DESC)').format(sql.Identifier(INDEX_NAME), table)
+
+            def parameters(customer):
+                return None if custom else (customer,)
 
             def phase(label):
                 progress(label)
@@ -46,7 +55,7 @@ def run(config, settings, progress):
                     measurements = []
                     with connect(config) as conn:
                         # Warm each connection and query path; warmup excluded.
-                        conn.execute(read, (1,)).fetchall()
+                        conn.execute(read, parameters(1)).fetchall()
                         for write, customer in part:
                             # Roll back every operation so both phases use identical rows.
                             conn.execute('BEGIN')
@@ -56,7 +65,7 @@ def run(config, settings, progress):
                                     # Distinct IDs avoid contention unrelated to the proposed index.
                                     conn.execute(sql.SQL("INSERT INTO {} VALUES (%s,%s,'pending',2500,timestamp '2026-06-01')").format(table), (-rng_id(), customer))
                                 else:
-                                    conn.execute(read, (customer,)).fetchall()
+                                    conn.execute(read, parameters(customer)).fetchall()
                                 elapsed = (time.perf_counter()-started)*1000
                                 measurements.append((write, elapsed))
                             finally:
@@ -67,7 +76,7 @@ def run(config, settings, progress):
                     parts = list(pool.map(worker, [tasks[i::clients] for i in range(clients)]))
                 seconds = time.perf_counter()-started
                 measurements = [x for part in parts for x in part]
-                plan = admin.execute(sql.SQL('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ') + read, (1,)).fetchone()[0][0]
+                plan = admin.execute(sql.SQL('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ') + read, parameters(1)).fetchone()[0][0]
                 return measurements, seconds, plan
 
             def report(measurements, seconds):
@@ -96,11 +105,11 @@ def run(config, settings, progress):
                     if kind == "candidate":
                         progress(prefix + 'Building composite index')
                         started = time.perf_counter()
-                        admin.execute(sql.SQL('CREATE INDEX orders_customer_created_idx ON {} (customer_id, created_at DESC)').format(table))
+                        admin.execute(create_index)
                         builds.append((time.perf_counter() - started) * 1000)
                         index_bytes = admin.execute(
                             'SELECT pg_relation_size(%s::regclass)',
-                            (schema + '.orders_customer_created_idx',),
+                            (schema + '.' + INDEX_NAME,),
                         ).fetchone()[0]
                     measurements, seconds, plan = phase(prefix + f'Measuring {kind}')
                     phases[kind].append((measurements, seconds, plan))
@@ -121,7 +130,7 @@ def run(config, settings, progress):
                 "index_bytes": index_bytes,
                 "build_ms": round(statistics.median(builds), 3),
                 "settings": settings,
-                "index_sql": 'CREATE INDEX ON orders (customer_id, created_at DESC);',
+                "index_sql": custom['index'] if custom else 'CREATE INDEX ON orders (customer_id, created_at DESC);',
                 "methodology": (
                     'Fixed seed 42; fresh identical rows per phase; identical task sequence; '
                     'per-connection warmup; client-side statement latency; transactions rolled back. '
