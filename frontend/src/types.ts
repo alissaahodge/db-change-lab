@@ -15,6 +15,8 @@ export type Trial = {
   baseline: Summary;
   candidate: Summary;
 };
+export type CustomWorkload = { query: string; index: string };
+
 export type Result = {
   trials?: Trial[];
   baseline: Phase;
@@ -29,6 +31,7 @@ export type Result = {
     samples: number;
     write_pct: number;
     trials?: number;
+    custom_workload?: CustomWorkload | null;
   };
 };
 export type Experiment = {

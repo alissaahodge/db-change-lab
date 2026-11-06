@@ -38,6 +38,13 @@ export function ExperimentResults({ current, plan, setPlan }: ExperimentResultsP
             {result.settings.samples} operations / phase
             {result.trials && ` · ${result.trials.length} trials`}
           </div>
+          {result.settings.custom_workload && (
+            <section className="panel comparison">
+              <h3>Custom workload</h3>
+              <pre>{result.settings.custom_workload.query}</pre>
+              <pre>{result.index_sql}</pre>
+            </section>
+          )}
           <div className="metrics">
             {[
               [
@@ -87,7 +94,9 @@ export function ExperimentResults({ current, plan, setPlan }: ExperimentResultsP
                 <div className="bar-group" key={kind}>
                   <strong>
                     {kind === 'reads'
-                      ? 'Customer order lookup'
+                      ? result.settings.custom_workload
+                        ? 'Custom read query'
+                        : 'Customer order lookup'
                       : 'Insert order (rolled back)'}
                   </strong>
                   <div className="bar-row">

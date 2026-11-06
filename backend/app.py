@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
+from psycopg import sql
+from .custom import compile_experiment
 from .runner import connect, run
 
 app = FastAPI(title='DB Change Lab', version='0.1.0')
@@ -35,7 +37,13 @@ class Connection(BaseModel):
     password: SecretStr
     sslmode: Literal['disable', 'require', 'verify-full'] = 'require'
 
+class CustomWorkload(BaseModel):
+    query: str = Field(max_length=512)
+    index: str = Field(max_length=256)
+
+
 class Experiment(BaseModel):
+    custom_workload: CustomWorkload | None = None
     rows: int = Field(default=100000, ge=10000, le=1000000)
     clients: int = Field(default=4, ge=1, le=16)
     trials: int = Field(default=1, ge=1, le=6)
@@ -117,6 +125,13 @@ def experiments():
 
 @app.post('/api/experiments', status_code=202)
 def create_experiment(body: Experiment):
+    if body.custom_workload:
+        try:
+            compile_experiment(body.custom_workload.query, body.custom_workload.index, sql.Identifier('orders'))
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        if body.write_pct:
+            raise HTTPException(422, 'Custom workloads require a read-only workload mix.')
     if body.connection_id:
         if not body.allow_test_schema:
             raise HTTPException(400, 'Explicit test-schema permission is required.')

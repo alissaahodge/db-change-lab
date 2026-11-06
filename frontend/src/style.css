@@ -766,3 +766,17 @@ footer span:first-child {
   white-space: nowrap;
   border-bottom: 1px solid #dfe4da;
 }
+
+.config textarea {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid #dfe4da;
+  border-radius: 4px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.comparison pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

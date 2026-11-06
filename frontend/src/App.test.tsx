@@ -121,3 +121,29 @@ it('locks connection fields until testing finishes, then clears the password', a
   expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('');
   expect(screen.getByText('Connection verified')).toBeTruthy();
 });
+
+it('submits the edited custom workload with writes disabled', async () => {
+  const user = userEvent.setup();
+  mockApi(async (path, body) => {
+    if (path === 'health') return { lab_configured: true };
+    return body ? { id: 'custom-run' } : [];
+  });
+
+  render(<App />);
+  await user.selectOptions(screen.getByLabelText('Workload', { exact: true }), 'custom');
+  const query = 'SELECT id FROM orders WHERE customer_id = 1 LIMIT 10';
+  await user.clear(screen.getByLabelText('Read query'));
+  await user.type(screen.getByLabelText('Read query'), query);
+  await user.click(screen.getByRole('button', { name: 'Run experiment' }));
+
+  expect(api).toHaveBeenCalledWith(
+    'experiments',
+    expect.objectContaining({
+      write_pct: 0,
+      custom_workload: {
+        query,
+        index: 'CREATE INDEX ON orders (status, created_at DESC);',
+      },
+    }),
+  );
+});

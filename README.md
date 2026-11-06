@@ -30,6 +30,12 @@ The setup script creates a local database password in an ignored `.env` file. Do
 
 Before interpreting a result, read [how measurements work](docs/benchmarking.md). Write operations are rolled back, and run order can affect timings.
 
+## Try a custom query and index
+
+Choose **Custom read query and index** under **Workload**. Start with the provided pending-orders example or enter a SELECT on generated orders. Use an optional equality filter, optional sort, and a LIMIT from 1 to 999. For the index, enter `CREATE INDEX ON orders (status, created_at DESC);` or choose other generated columns.
+
+The result saves the query and index definition with the measurements. Use generated values in queries, since experiment history is stored locally.
+
 ## Connect a test database
 
 Open **Connections**, enter your PostgreSQL connection details, and click **Test connection**. This checks access and lists visible tables; it does not start an experiment.

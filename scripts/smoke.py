@@ -20,7 +20,15 @@ def experiment(connection_id=None):
     if not connection_id:
         settings['trials'] = 2
     if connection_id:
-        settings.update(connection_id=connection_id, allow_test_schema=True)
+        settings.update(
+            connection_id=connection_id,
+            allow_test_schema=True,
+            write_pct=0,
+            custom_workload={
+                "query": "SELECT id FROM orders WHERE status = 'pending' ORDER BY created_at DESC LIMIT 20;",
+                "index": "CREATE INDEX ON orders (status, created_at DESC);",
+            },
+        )
     run_id = request('/api/experiments', settings)['id']
     deadline = time.monotonic()+90
     while time.monotonic() < deadline:
@@ -53,7 +61,10 @@ def main():
     # Resolve postgres from inside the app container, not this smoke-test process.
     connection = request('/api/connections/test', dict(host='postgres', port=5432, dbname='lab', user='lab', password=os.environ['LAB_DB_PASSWORD'], sslmode='disable'))
     assert connection['version']
-    experiment(connection['connection_id'])
+    custom = experiment(connection['connection_id'])
+    assert custom['baseline']['writes'] is None
+    assert custom['candidate']['writes'] is None
+    assert custom['index_sql'] == 'CREATE INDEX ON orders (status, created_at DESC);'
     print('Smoke checks passed: packaged UI, background experiment, connection test, custom test target.')
     print('DB_CHANGE_LAB_RESULT=' + json.dumps(result, separators=(',',':')))
 
