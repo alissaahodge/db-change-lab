@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import type { Experiment, ConnectionResult, ExperimentSettings } from './types';
-import { ExperimentsPage } from './pages/ExperimentsPage';
+import { ExperimentsPage, type ExperimentView } from './pages/ExperimentsPage';
 import { ConnectionsPage } from './pages/ConnectionsPage';
 import { MethodologyPage } from './pages/MethodologyPage';
 
@@ -32,7 +32,7 @@ export default function App() {
   const [testing, setTesting] = useState(false);
   const [target, setTarget] = useState('lab');
   const [allowSchema, setAllowSchema] = useState(false);
-  const [plan, setPlan] = useState(false);
+  const [view, setView] = useState<ExperimentView>('New experiment');
 
   // A mutation invalidates snapshots requested before its history update.
   const historyRevision = useRef(0);
@@ -98,6 +98,7 @@ export default function App() {
       const experimentHistory = await api<Experiment[]>('experiments');
       historyRevision.current += 1;
       setRuns(experimentHistory);
+      setView('Results');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -138,7 +139,10 @@ export default function App() {
           {['Experiments', 'Connections', 'Methodology'].map((t, i) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                if (t === 'Experiments') setView('New experiment');
+              }}
               className={tab === t ? 'nav active' : 'nav'}
             >
               <span aria-hidden="true">{['◈', '⇄', '≡'][i]}</span>
@@ -167,14 +171,18 @@ export default function App() {
             <div>
               <h1>
                 {tab === 'Experiments'
-                  ? 'A better query starts here.'
+                  ? view
                   : tab === 'Connections'
                     ? 'Bring your database.'
                     : 'Evidence, with context.'}
               </h1>
               <p className="subtitle">
                 {tab === 'Experiments'
-                  ? 'Test an index. See the tradeoffs. Keep the evidence.'
+                  ? view === 'New experiment'
+                    ? 'Choose a workload and measure what an index changes.'
+                    : view === 'Results'
+                      ? 'Compare the baseline with the indexed run.'
+                      : 'Reopen a saved benchmark.'
                   : tab === 'Connections'
                     ? 'Verify access and explore your schema. Your credentials stay in this session.'
                     : 'Understand exactly what each experiment measures.'}
@@ -197,8 +205,14 @@ export default function App() {
               current={current}
               runs={runs}
               setSelected={setSelected}
-              plan={plan}
-              setPlan={setPlan}
+              view={view}
+              setView={setView}
+              editRun={(savedSettings) => {
+                setSettings(savedSettings);
+                setTarget('lab');
+                setError('');
+                setView('New experiment');
+              }}
             />
           )}
           {tab === 'Connections' && (
@@ -213,7 +227,10 @@ export default function App() {
               allowSchema={allowSchema}
               setAllowSchema={setAllowSchema}
               setTarget={setTarget}
-              setTab={setTab}
+              setTab={(next) => {
+                setTab(next);
+                setView('New experiment');
+              }}
             />
           )}
           {tab === 'Methodology' && <MethodologyPage />}

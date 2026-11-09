@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { Experiment } from '../types';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ExperimentsPage } from './ExperimentsPage';
+import { ExperimentsPage, type ExperimentView } from './ExperimentsPage';
 
 afterEach(cleanup);
 
@@ -22,8 +22,9 @@ it('shows the proposed index as readable SQL on two lines', () => {
     current: undefined,
     runs: [],
     setSelected: vi.fn(),
-    plan: false,
-    setPlan: vi.fn(),
+    view: 'New experiment',
+    setView: vi.fn(),
+    editRun: vi.fn(),
   };
   render(<ExperimentsPage {...props} />);
   expect(screen.getByText(/CREATE INDEX/).textContent).toBe(
@@ -83,7 +84,7 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
   };
   function Workbench() {
     const [selected, setSelected] = useState<string | null>(null);
-    const [plan, setPlan] = useState(false);
+    const [view, setView] = useState<ExperimentView>('New experiment');
     const [settings, setSettings] = useState(run.result!.settings);
     const [target, setTarget] = useState('lab');
     return (
@@ -101,24 +102,28 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
         current={selected === run.id ? run : undefined}
         runs={[run]}
         setSelected={setSelected}
-        plan={plan}
-        setPlan={setPlan}
+        view={view}
+        setView={setView}
+        editRun={(saved) => {
+          setSettings(saved);
+          setView('New experiment');
+        }}
       />
     );
   }
   render(<Workbench />);
   expect(screen.getByRole('alert').textContent).toBe('Example error');
+  await user.click(screen.getByText('Run settings'));
   await user.selectOptions(screen.getByLabelText('Order count'), '100000');
   expect((screen.getByLabelText('Order count') as HTMLSelectElement).value).toBe(
     '100000',
   );
   await user.click(screen.getByRole('button', { name: 'Run experiment' }));
   expect(start).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole('button', { name: 'History' }));
   await user.click(screen.getByRole('button', { name: /complete/ }));
-  const disclosure = screen.getByRole('button', { name: /Execution plans/ });
-  expect(disclosure.getAttribute('aria-expanded')).toBe('false');
-  await user.click(disclosure);
-  expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+  expect(screen.getByText('Median latency')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Execution plan' }));
   const comparison = within(
     screen.getByRole('table', { name: 'Execution plan comparison' }),
   );
@@ -130,6 +135,8 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
   expect(comparison.getByRole('row', { name: /Shared blocks read 1 0/ })).toBeTruthy();
   await user.click(screen.getByText('Raw JSON plans'));
   expect(screen.getByText(/"Node Type": "Seq Scan"/).closest('details')?.open).toBe(true);
-  await user.click(disclosure);
+  await user.click(screen.getByRole('button', { name: 'Edit & rerun' }));
+  await user.click(screen.getByText('Run settings'));
+  expect((screen.getByLabelText('Order count') as HTMLSelectElement).value).toBe('10000');
   expect(screen.queryByRole('table', { name: 'Execution plan comparison' })).toBeNull();
 });

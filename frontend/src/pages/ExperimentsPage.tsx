@@ -4,6 +4,8 @@ import { ExperimentForm } from '../components/ExperimentForm';
 import { ExperimentResults } from '../components/ExperimentResults';
 import { ExperimentHistory } from '../components/ExperimentHistory';
 
+export type ExperimentView = 'New experiment' | 'Results' | 'History';
+
 type ExperimentsPageProps = {
   settings: ExperimentSettings;
   setSettings: Dispatch<SetStateAction<ExperimentSettings>>;
@@ -18,37 +20,59 @@ type ExperimentsPageProps = {
   current: Experiment | undefined;
   runs: Experiment[];
   setSelected: Dispatch<SetStateAction<string | null>>;
-  plan: boolean;
-  setPlan: Dispatch<SetStateAction<boolean>>;
+  view: ExperimentView;
+  setView: (view: ExperimentView) => void;
+  editRun: (settings: ExperimentSettings) => void;
 };
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
   return (
     <>
-      <div className="layout">
-        <ExperimentForm
-          settings={props.settings}
-          setSettings={props.setSettings}
-          target={props.target}
-          setTarget={props.setTarget}
-          connection={props.connection}
-          allowSchema={props.allowSchema}
-          busy={props.busy}
-          health={props.health}
-          start={props.start}
-          error={props.error}
-        />
+      <nav className="workspace-nav" aria-label="Experiment workspace">
+        {(['New experiment', 'Results', 'History'] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            aria-current={props.view === view ? 'page' : undefined}
+            onClick={() => props.setView(view)}
+          >
+            {view}
+          </button>
+        ))}
+      </nav>
+      {props.view === 'New experiment' && (
+        <div className="experiment-setup">
+          <ExperimentForm
+            settings={props.settings}
+            setSettings={props.setSettings}
+            target={props.target}
+            setTarget={props.setTarget}
+            connection={props.connection}
+            allowSchema={props.allowSchema}
+            busy={props.busy}
+            health={props.health}
+            start={props.start}
+            error={props.error}
+          />
+        </div>
+      )}
+      {props.view === 'Results' && (
         <ExperimentResults
+          key={props.current?.id}
           current={props.current}
-          plan={props.plan}
-          setPlan={props.setPlan}
+          editRun={props.editRun}
         />
-      </div>
-      <ExperimentHistory
-        current={props.current}
-        runs={props.runs}
-        setSelected={props.setSelected}
-      />
+      )}
+      {props.view === 'History' && (
+        <ExperimentHistory
+          current={props.current}
+          runs={props.runs}
+          setSelected={(id) => {
+            props.setSelected(id);
+            props.setView('Results');
+          }}
+        />
+      )}
     </>
   );
 }

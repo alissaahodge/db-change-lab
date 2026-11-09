@@ -78,10 +78,11 @@ describe('experiment history polling', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Run experiment/ }));
     });
-    expect(screen.getByText('newrun12')).toBeTruthy();
+    expect(screen.getByText('Waiting for runner')).toBeTruthy();
 
     await act(async () => oldHistory.resolve([]));
-    expect(screen.getByText('newrun12')).toBeTruthy();
+    expect(screen.getByText('Waiting for runner')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'New experiment' }));
     expect(
       (
         screen.getByRole('button', {

@@ -1,10 +1,9 @@
-import type { Dispatch, SetStateAction } from 'react';
 import type { Experiment } from '../types';
 
 type ExperimentHistoryProps = {
   current: Experiment | undefined;
   runs: Experiment[];
-  setSelected: Dispatch<SetStateAction<string | null>>;
+  setSelected: (id: string) => void;
 };
 
 export function ExperimentHistory({
