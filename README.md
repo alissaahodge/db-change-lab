@@ -6,7 +6,11 @@ DB Change Lab is an interactive tool for exploring how an index affects a Postgr
 
 Experiments use generated orders data, so you can try the app without supplying customer records.
 
-![Experiment workspace](docs/experiments.png)
+![Results overview with baseline and indexed measurements](docs/experiments.png)
+
+[New experiment](docs/experiment-setup.png) · [Execution plan](docs/execution-plan.png) · [History](docs/experiment-history.png)
+
+Screenshots use sample benchmark results.
 
 ## Start locally
 
@@ -23,10 +27,10 @@ The setup script creates a local database password in an ignored `.env` file. Do
 
 ## Run your first experiment
 
-1. Choose how many orders to generate, how many clients should run at once, the mix of reads and writes, and how many trials to run.
-2. Click **Run experiment**. Each trial measures the workload with and without the index. The order alternates between trials.
-3. Compare latency, operations per second, index size, and build time. Use **Variation across trials** to see how consistent the results are. Expand **Execution plans** to compare scans, sorts, returned rows, and shared buffers. Expand **Raw JSON plans** for the full plans.
-4. Use **Recent experiments** to revisit a previous result.
+1. Open **New experiment** and choose a test database and workload. Open **Run settings** to adjust the generated order count, concurrency, operations, trials, or read/write mix.
+2. Click **Run experiment**. The app opens **Results** and follows the run as it progresses. Each trial measures the workload with and without the index. The order alternates between trials.
+3. Compare latency, throughput, index size, and build time in **Overview**. Switch to **Execution plan** for scans, sorts, rows, and shared buffers, or **Trials** for individual measurements.
+4. Open **History** to revisit a saved run. **Edit & rerun** restores its workload and run settings, with the dedicated lab database selected. Review the target before running again.
 
 Before interpreting a result, read [how measurements work](docs/benchmarking.md). Write operations are rolled back, and run order can affect timings.
 

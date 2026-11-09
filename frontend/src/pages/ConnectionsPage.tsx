@@ -14,7 +14,7 @@ type ConnectionsPageProps = {
   allowSchema: boolean;
   setAllowSchema: Dispatch<SetStateAction<boolean>>;
   setTarget: Dispatch<SetStateAction<string>>;
-  setTab: Dispatch<SetStateAction<string>>;
+  setTab: (tab: string) => void;
 };
 
 export function ConnectionsPage({

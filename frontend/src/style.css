@@ -811,3 +811,76 @@ footer span:first-child {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.workspace-nav,
+.result-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.workspace-nav {
+  border-bottom: 1px solid #dfe4da;
+  padding-bottom: 10px;
+}
+.workspace-nav button,
+.workspace-action {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #dfe4da;
+  background: #fff;
+  color: #26372d;
+  font-weight: 600;
+}
+.workspace-nav button[aria-current] {
+  background: #e7efe2;
+  border-color: #aabda4;
+}
+.experiment-setup {
+  max-width: 720px;
+}
+.run-settings {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #dfe4da;
+  border-radius: 6px;
+}
+.run-settings summary,
+.run-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.result-actions {
+  justify-content: space-between;
+}
+.result-actions p {
+  margin: 0;
+}
+.result-nav {
+  margin-top: 4px;
+}
+.run-details {
+  margin-top: 16px;
+}
+.plan-view {
+  padding-top: 12px;
+  padding-bottom: 6px;
+}
+.results .metric > span {
+  color: #52624b;
+  font-size: 13px;
+  font-weight: 600;
+}
+.results .metric div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  color: #52624b;
+  font-size: 13px;
+}
+.results .metric strong {
+  color: #26372d;
+  font-weight: 700;
+}

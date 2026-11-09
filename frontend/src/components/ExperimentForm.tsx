@@ -44,65 +44,7 @@ export function ExperimentForm({
           )}
         </select>
       </label>
-      <label>
-        Dataset
-        <select>
-          <option>Commerce / Orders</option>
-        </select>
-      </label>
-      <p className="hint">Deterministic synthetic data. No customer records required.</p>
-      <div className="two">
-        <label>
-          Order count
-          <select
-            value={settings.rows}
-            onChange={(e) => setSettings({ ...settings, rows: +e.target.value })}
-          >
-            {[10000, 100000, 500000, 1000000].map((rowCount) => (
-              <option key={rowCount} value={rowCount}>
-                {format(rowCount)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Concurrent clients
-          <input
-            type="number"
-            min="1"
-            max="16"
-            value={settings.clients}
-            onChange={(e) => setSettings({ ...settings, clients: +e.target.value })}
-          />
-        </label>
-      </div>
-      <label>
-        Operations per phase
-        <input
-          type="number"
-          min="20"
-          max="2000"
-          value={settings.samples}
-          onChange={(e) => setSettings({ ...settings, samples: +e.target.value })}
-        />
-      </label>
-      <label>
-        Trials
-        <select
-          value={settings.trials ?? 1}
-          onChange={(e) => setSettings({ ...settings, trials: Number(e.target.value) })}
-        >
-          {[1, 2, 4, 6].map((count) => (
-            <option key={count} value={count}>
-              {count}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="hint">
-        Each trial runs both phases. More trials take longer and show how much results
-        vary.
-      </p>
+      <p className="hint">Experiments use generated orders.</p>
       <label>
         Workload
         <select
@@ -174,23 +116,6 @@ export function ExperimentForm({
         </div>
       ) : (
         <>
-          <label className="range-label">
-            Workload mix{' '}
-            <strong>
-              {100 - settings.write_pct}% reads / {settings.write_pct}% writes
-            </strong>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value={settings.write_pct}
-              onChange={(e) => setSettings({ ...settings, write_pct: +e.target.value })}
-            />
-          </label>
-          <div className="mix">
-            <span style={{ width: 100 - settings.write_pct + '%' }} />
-          </div>
           <div className="change">
             <span className="eyebrow">PROPOSED CHANGE</span>
             <pre>CREATE INDEX ON orders{'\n'} (customer_id, created_at DESC);</pre>
@@ -199,6 +124,88 @@ export function ExperimentForm({
           </div>
         </>
       )}
+      <p className="hint">
+        {format(settings.rows)} orders · {settings.clients} clients · {settings.samples}{' '}
+        operations per phase per trial · {settings.trials ?? 1}{' '}
+        {(settings.trials ?? 1) === 1 ? 'trial' : 'trials'} ·{' '}
+        {settings.custom_workload ? 'reads only' : `${settings.write_pct}% writes`}
+      </p>
+      <details className="run-settings">
+        <summary>Run settings</summary>
+        <div className="two">
+          <label>
+            Order count
+            <select
+              value={settings.rows}
+              onChange={(e) => setSettings({ ...settings, rows: +e.target.value })}
+            >
+              {[10000, 100000, 500000, 1000000].map((rowCount) => (
+                <option key={rowCount} value={rowCount}>
+                  {format(rowCount)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Concurrent clients
+            <input
+              type="number"
+              min="1"
+              max="16"
+              value={settings.clients}
+              onChange={(e) => setSettings({ ...settings, clients: +e.target.value })}
+            />
+          </label>
+        </div>
+        <label>
+          Operations per phase per trial
+          <input
+            type="number"
+            min="20"
+            max="2000"
+            value={settings.samples}
+            onChange={(e) => setSettings({ ...settings, samples: +e.target.value })}
+          />
+        </label>
+        <label>
+          Trials
+          <select
+            value={settings.trials ?? 1}
+            onChange={(e) => setSettings({ ...settings, trials: Number(e.target.value) })}
+          >
+            {[1, 2, 3, 4, 5, 6].map((count) => (
+              <option key={count} value={count}>
+                {count}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="hint">
+          Each trial runs both phases. More trials take longer and show how much results
+          vary.
+        </p>
+        {!settings.custom_workload && (
+          <>
+            <label className="range-label">
+              Workload mix{' '}
+              <strong>
+                {100 - settings.write_pct}% reads / {settings.write_pct}% writes
+              </strong>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={settings.write_pct}
+                onChange={(e) => setSettings({ ...settings, write_pct: +e.target.value })}
+              />
+            </label>
+            <div className="mix">
+              <span style={{ width: 100 - settings.write_pct + '%' }} />
+            </div>
+          </>
+        )}
+      </details>
       <PrimaryButton
         onClick={() => void start()}
         disabled={
