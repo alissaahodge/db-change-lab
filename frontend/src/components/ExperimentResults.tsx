@@ -1,3 +1,4 @@
+import { PlanComparison } from './PlanComparison';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Experiment } from '../types';
 import { format } from '../format';
@@ -178,16 +179,10 @@ export function ExperimentResults({ current, plan, setPlan }: ExperimentResultsP
               Execution plans <span>{plan ? '−' : '+'}</span>
             </button>
             {plan && (
-              <div className="two">
-                <div>
-                  <h4>Baseline</h4>
-                  <pre>{JSON.stringify(result.baseline.plan, null, 2)}</pre>
-                </div>
-                <div>
-                  <h4>With index</h4>
-                  <pre>{JSON.stringify(result.candidate.plan, null, 2)}</pre>
-                </div>
-              </div>
+              <PlanComparison
+                baseline={result.baseline.plan}
+                candidate={result.candidate.plan}
+              />
             )}
           </section>
           <p className="hint">{result.methodology}</p>

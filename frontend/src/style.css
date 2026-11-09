@@ -468,6 +468,37 @@ input[type='range'] {
   color: #3b5038;
   font-size: 13px;
 }
+.plan-comparison {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.plan-comparison th,
+.plan-comparison td {
+  padding: 9px 7px;
+  border-bottom: 1px solid #dfe4da;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.plan-changed {
+  background: #edf4e6;
+}
+.plan-change-label {
+  display: block;
+  margin-top: 3px;
+  color: #4b6144;
+  font-size: 10px;
+  font-weight: 700;
+}
+.raw-plans {
+  margin: 14px 0;
+  font-size: 12px;
+}
+.raw-plans summary {
+  cursor: pointer;
+}
 .plans pre {
   overflow: auto;
   max-height: 330px;
