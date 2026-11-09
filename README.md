@@ -25,7 +25,7 @@ The setup script creates a local database password in an ignored `.env` file. Do
 
 1. Choose how many orders to generate, how many clients should run at once, the mix of reads and writes, and how many trials to run.
 2. Click **Run experiment**. Each trial measures the workload with and without the index. The order alternates between trials.
-3. Compare latency, operations per second, index size, and build time. Use **Variation across trials** to see how consistent the results are. Expand **Execution plans** to see how PostgreSQL ran the lookup.
+3. Compare latency, operations per second, index size, and build time. Use **Variation across trials** to see how consistent the results are. Expand **Execution plans** to compare scans, sorts, returned rows, and shared buffers. Expand **Raw JSON plans** for the full plans.
 4. Use **Recent experiments** to revisit a previous result.
 
 Before interpreting a result, read [how measurements work](docs/benchmarking.md). Write operations are rolled back, and run order can affect timings.

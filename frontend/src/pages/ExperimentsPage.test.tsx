@@ -1,7 +1,7 @@
 import { useState, type ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import type { Experiment } from '../types';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ExperimentsPage } from './ExperimentsPage';
 
@@ -45,13 +45,34 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
         all: summary,
         reads: summary,
         writes: null,
-        plan: { Node: 'Seq Scan' },
+        plan: {
+          Plan: {
+            'Node Type': 'Limit',
+            'Actual Rows': 20,
+            'Shared Hit Blocks': 50,
+            'Shared Read Blocks': 1,
+            Plans: [
+              {
+                'Node Type': 'Sort',
+                Plans: [{ 'Node Type': 'Seq Scan', 'Shared Hit Blocks': 50 }],
+              },
+            ],
+          },
+        },
       },
       candidate: {
         all: summary,
         reads: summary,
         writes: null,
-        plan: { Node: 'Index Scan' },
+        plan: {
+          Plan: {
+            'Node Type': 'Limit',
+            'Actual Rows': 20,
+            'Shared Hit Blocks': 3,
+            'Shared Read Blocks': 0,
+            Plans: [{ 'Node Type': 'Index Scan', 'Index Name': 'orders_idx' }],
+          },
+        },
       },
       index_bytes: 1024,
       build_ms: 10,
@@ -98,8 +119,17 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
   expect(disclosure.getAttribute('aria-expanded')).toBe('false');
   await user.click(disclosure);
   expect(disclosure.getAttribute('aria-expanded')).toBe('true');
-  expect(screen.getByText(/Seq Scan/)).toBeTruthy();
-  expect(screen.getByText(/Index Scan/)).toBeTruthy();
+  const comparison = within(
+    screen.getByRole('table', { name: 'Execution plan comparison' }),
+  );
+  expect(
+    comparison.getByRole('row', { name: /Scan steps Seq Scan Index Scan/ }),
+  ).toBeTruthy();
+  expect(comparison.getByRole('row', { name: /Sort steps Sort None/ })).toBeTruthy();
+  expect(comparison.getByRole('row', { name: /Shared blocks hit 50 3/ })).toBeTruthy();
+  expect(comparison.getByRole('row', { name: /Shared blocks read 1 0/ })).toBeTruthy();
+  await user.click(screen.getByText('Raw JSON plans'));
+  expect(screen.getByText(/"Node Type": "Seq Scan"/).closest('details')?.open).toBe(true);
   await user.click(disclosure);
-  expect(screen.queryByText(/Seq Scan/)).toBeNull();
+  expect(screen.queryByRole('table', { name: 'Execution plan comparison' })).toBeNull();
 });
