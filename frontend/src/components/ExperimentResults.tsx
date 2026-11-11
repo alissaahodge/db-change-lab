@@ -1,3 +1,4 @@
+import { ErrorMessage } from './ErrorMessage';
 import { PlanComparison } from './PlanComparison';
 import { useState } from 'react';
 import type { Experiment, ExperimentSettings } from '../types';
@@ -5,11 +6,32 @@ import { format } from '../format';
 
 type ExperimentResultsProps = {
   current: Experiment | undefined;
+  cancelRun: (id: string) => Promise<void>;
   editRun: (settings: ExperimentSettings) => void;
 };
 
-export function ExperimentResults({ current, editRun }: ExperimentResultsProps) {
+export function ExperimentResults({
+  current,
+  editRun,
+  cancelRun,
+}: ExperimentResultsProps) {
   const [view, setView] = useState<'Overview' | 'Execution plan' | 'Trials'>('Overview');
+  const [requestingCancel, setRequestingCancel] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const canCancel = current?.state === 'queued' || current?.state === 'running';
+
+  async function requestCancel(id: string) {
+    setRequestingCancel(true);
+    setCancelError('');
+    try {
+      await cancelRun(id);
+    } catch (error) {
+      setCancelError((error as Error).message);
+    } finally {
+      setRequestingCancel(false);
+    }
+  }
+
   const result = current?.result;
   return (
     <section className="results">
@@ -25,16 +47,26 @@ export function ExperimentResults({ current, editRun }: ExperimentResultsProps) 
         <div className="empty panel">
           <div className="orbit">↗</div>
           <h3>{current ? current.stage : 'Your hypothesis. Real measurements.'}</h3>
-          <p>
-            {current && ['queued', 'running'].includes(current.state)
-              ? 'The runner is working. Results will appear here automatically.'
-              : 'Run your first experiment to compare query latency, execution plans, and index storage.'}
-          </p>
-          <div className="empty-steps">
-            <span>01 / Baseline</span>
-            <span>02 / Index</span>
-            <span>03 / Compare</span>
-          </div>
+          {canCancel && (
+            <>
+              <p>The runner is working. Results will appear here automatically.</p>
+              <button
+                type="button"
+                className="workspace-action"
+                disabled={requestingCancel}
+                onClick={() => void requestCancel(current.id)}
+              >
+                {requestingCancel ? 'Requesting cancellation…' : 'Cancel run'}
+              </button>
+              <ErrorMessage message={cancelError} />
+            </>
+          )}
+          {!current && (
+            <p>
+              Run your first experiment to compare query latency, execution plans, and
+              index storage.
+            </p>
+          )}
         </div>
       ) : (
         <>

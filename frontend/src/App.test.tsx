@@ -148,3 +148,38 @@ it('submits the edited custom workload with writes disabled', async () => {
     }),
   );
 });
+
+it('cancels from Results and shows the final state in History', async () => {
+  vi.useFakeTimers();
+  const run: Experiment = {
+    id: 'cancel-test',
+    created: '2026-11-10 12:00:00',
+    state: 'running',
+    stage: 'Measuring baseline',
+    result: null,
+  };
+  mockApi(async (path) => {
+    if (path === 'health') return { lab_configured: true };
+    if (path === 'experiments/cancel-test/cancel') return { state: 'cancelling' };
+    return [run];
+  });
+
+  await act(async () => {
+    render(<App />);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Results' }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }));
+  });
+  expect(api).toHaveBeenCalledWith('experiments/cancel-test/cancel', {});
+  expect(screen.getByRole('status').textContent).toBe('cancelling');
+  expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull();
+
+  run.state = 'cancelled';
+  run.stage = 'Experiment cancelled';
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1500);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  expect(screen.getByRole('button', { name: /Experiment cancelled/ })).toBeTruthy();
+});

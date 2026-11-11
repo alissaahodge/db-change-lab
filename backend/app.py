@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, SecretStr
 from psycopg import sql
 from .custom import compile_experiment
-from .runner import connect, run
+from .runner import ExperimentCancelled, connect, run
 
 app = FastAPI(title='DB Change Lab', version='0.1.0')
 DATA = Path(os.getenv('LAB_DATA_DIR', 'data'))
@@ -23,9 +23,10 @@ DATA.mkdir(exist_ok=True)
 DB = DATA / 'experiments.sqlite3'
 with sqlite3.connect(DB) as db:
     db.execute('CREATE TABLE IF NOT EXISTS experiments (id TEXT PRIMARY KEY, created TEXT DEFAULT CURRENT_TIMESTAMP, state TEXT, stage TEXT, result TEXT)')
-    db.execute("UPDATE experiments SET state='interrupted', stage='Server restarted; rerun experiment' WHERE state IN ('queued','running')")
+    db.execute("UPDATE experiments SET state='interrupted', stage='Server restarted; rerun experiment' WHERE state IN ('queued','running','cancelling')")
 pool = ThreadPoolExecutor(max_workers=1)
-busy = threading.Lock()
+active_lock = threading.Lock()
+active_runs: dict[str, threading.Event] = {}
 sessions = {}
 sessions_lock = threading.Lock()
 
@@ -151,25 +152,69 @@ def create_experiment(body: Experiment):
         except ValueError:
             raise HTTPException(409, 'LAB_DB_PORT must be a number from 1 to 65535.') from None
         config = dict(host=os.environ['LAB_DB_HOST'], port=port, dbname=os.getenv('LAB_DB_NAME','lab'), user=os.getenv('LAB_DB_USER','lab'), password=os.environ['LAB_DB_PASSWORD'], sslmode=os.getenv('LAB_DB_SSLMODE','disable'))
-    if not busy.acquire(blocking=False):
-        raise HTTPException(409, 'An experiment is already running.')
-    id = uuid.uuid4().hex
-    try:
+    with active_lock:
+        if active_runs:
+            raise HTTPException(409, 'An experiment is already running.')
+        id = uuid.uuid4().hex
+        stop = threading.Event()
         with sqlite3.connect(DB) as db:
             db.execute("INSERT INTO experiments(id,state,stage) VALUES (?,'queued','Waiting for runner')", (id,))
-        def execute():
+        active_runs[id] = stop
+
+    def progress(stage):
+        with active_lock:
+            if not stop.is_set():
+                update(id, 'running', stage)
+
+    def execute():
+        try:
+            result = run(
+                config, body.model_dump(exclude={'connection_id', 'allow_test_schema'}),
+                progress, stop=stop,
+            )
+            state, stage = 'completed', 'Experiment complete'
+        except ExperimentCancelled:
+            result = None
+            state, stage = 'cancelled', 'Experiment cancelled'
+        except Exception:
+            result = None
+            state = 'failed'
+            stage = 'Experiment failed. Check lab availability and database privileges. No connection details were saved.'
+        with active_lock:
             try:
-                result = run(config, body.model_dump(exclude={'connection_id', 'allow_test_schema'}), lambda stage: update(id, 'running', stage))
-                update(id, 'completed', 'Experiment complete', result)
-            except Exception:
-                update(id, 'failed', 'Experiment failed. Check lab availability and database privileges. No connection details were saved.')
+                if stop.is_set() and state == 'completed':
+                    state, stage, result = 'cancelled', 'Experiment cancelled', None
+                update(id, state, stage, result)
             finally:
-                busy.release()
+                active_runs.pop(id)
+
+    try:
         pool.submit(execute)
     except Exception:
-        busy.release()
+        with active_lock:
+            try:
+                update(id, 'failed', 'The experiment could not be scheduled.')
+            finally:
+                active_runs.pop(id)
         raise
     return {'id': id}
+
+
+@app.post('/api/experiments/{id}/cancel', status_code=202)
+def cancel_experiment(id: str):
+    with active_lock:
+        stop = active_runs.get(id)
+        if stop is None:
+            with sqlite3.connect(DB) as db:
+                exists = db.execute('SELECT 1 FROM experiments WHERE id=?', (id,)).fetchone()
+            if not exists:
+                raise HTTPException(404, 'Experiment not found.')
+            raise HTTPException(409, 'This experiment has already stopped.')
+        if not stop.is_set():
+            update(id, 'cancelling', 'Waiting for active database work and schema cleanup')
+            stop.set()
+    return {'state': 'cancelling'}
+
 
 DIST = Path(__file__).resolve().parents[1] / 'frontend' / 'dist'
 if DIST.exists():

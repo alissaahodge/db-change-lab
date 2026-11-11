@@ -32,6 +32,8 @@ The setup script creates a local database password in an ignored `.env` file. Do
 3. Compare latency, throughput, index size, and build time in **Overview**. Switch to **Execution plan** for scans, sorts, rows, and shared buffers, or **Trials** for individual measurements.
 4. Open **History** to revisit a saved run. **Edit & rerun** restores its workload and run settings, with the dedicated lab database selected. Review the target before running again.
 
+To stop an active experiment, open **Results** and click **Cancel run**. The run shows **Cancelling** while active database work finishes and the runner removes its temporary schema. After cleanup, it shows **Cancelled** in **History**.
+
 Before interpreting a result, read [how measurements work](docs/benchmarking.md). Write operations are rolled back, and run order can affect timings.
 
 ## Try a custom query and index

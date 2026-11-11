@@ -57,3 +57,31 @@ def test_progress_failure_still_cleans_up_schema(failure_stage):
             "SELECT nspname FROM pg_namespace WHERE nspname LIKE 'lab_%'"
         ).fetchall())
     assert after == before
+
+
+@pytest.mark.skipif(not os.getenv('LAB_TEST_DSN'), reason='Disposable PostgreSQL not configured')
+def test_cancelling_a_measurement_drops_its_schema():
+    from threading import Event
+
+    from backend.runner import ExperimentCancelled
+
+    config = conninfo_to_dict(os.environ['LAB_TEST_DSN'])
+    stop = Event()
+
+    with psycopg.connect(**config) as conn:
+        def schemas():
+            return set(conn.execute(
+                "SELECT nspname FROM pg_namespace WHERE nspname LIKE 'lab_%'"
+            ).fetchall())
+
+        before = schemas()
+
+        def report(stage):
+            if stage == 'Measuring candidate':
+                assert schemas() - before
+                stop.set()
+
+        with pytest.raises(ExperimentCancelled):
+            run(config, {'rows': 10000, 'clients': 2, 'samples': 20, 'write_pct': 20}, report, stop=stop)
+
+        assert schemas() == before

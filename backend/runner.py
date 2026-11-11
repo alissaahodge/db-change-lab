@@ -26,7 +26,16 @@ def connect(config):
                            options="-c statement_timeout=15000 -c lock_timeout=2000")
 
 
-def run(config, settings, progress):
+class ExperimentCancelled(Exception):
+    """The runner stopped at a cancellation checkpoint."""
+
+
+def run(config, settings, progress, *, stop=None):
+    def check_cancelled():
+        if stop is not None and stop.is_set():
+            raise ExperimentCancelled
+
+    check_cancelled()
     schema = 'lab_' + uuid.uuid4().hex
     table = sql.Identifier(schema, 'orders')
     rows, clients, samples = settings['rows'], settings['clients'], settings['samples']
@@ -38,6 +47,7 @@ def run(config, settings, progress):
         tasks.append((rng.randrange(100) < write_pct, rng.randrange(1, 1001)))
     progress('Preparing generated orders')
     with connect(config) as admin:
+        check_cancelled()
         admin.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
         try:
             if custom:
@@ -50,13 +60,17 @@ def run(config, settings, progress):
                 return None if custom else (customer,)
 
             def phase(label):
+                check_cancelled()
                 progress(label)
                 def worker(part):
                     measurements = []
+                    check_cancelled()
                     with connect(config) as conn:
+                        check_cancelled()
                         # Warm each connection and query path; warmup excluded.
                         conn.execute(read, parameters(1)).fetchall()
                         for write, customer in part:
+                            check_cancelled()
                             # Roll back every operation so both phases use identical rows.
                             conn.execute('BEGIN')
                             try:
@@ -76,6 +90,7 @@ def run(config, settings, progress):
                     parts = list(pool.map(worker, [tasks[i::clients] for i in range(clients)]))
                 seconds = time.perf_counter()-started
                 measurements = [x for part in parts for x in part]
+                check_cancelled()
                 plan = admin.execute(sql.SQL('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ') + read, parameters(1)).fetchone()[0][0]
                 return measurements, seconds, plan
 
@@ -99,14 +114,20 @@ def run(config, settings, progress):
                 prefix = f'Trial {number}/{trial_count}: ' if trial_count > 1 else ''
                 for kind in order:
                     progress(prefix + f'Preparing {kind} orders')
+                    check_cancelled()
                     admin.execute(sql.SQL('CREATE TABLE {} (id bigint PRIMARY KEY, customer_id int NOT NULL, status text NOT NULL, total_cents int NOT NULL, created_at timestamp NOT NULL)').format(table))
+                    check_cancelled()
                     admin.execute(sql.SQL("INSERT INTO {} SELECT i, 1+(i%%1000), CASE WHEN i%%5=0 THEN 'pending' ELSE 'completed' END, 100+(i%%10000), timestamp '2026-01-01' + (i%%365)*interval '1 day' FROM generate_series(1,%s) i").format(table), (rows,))
+                    check_cancelled()
                     admin.execute(sql.SQL('ANALYZE {}').format(table))
+                    check_cancelled()
                     if kind == "candidate":
                         progress(prefix + 'Building composite index')
+                        check_cancelled()
                         started = time.perf_counter()
                         admin.execute(create_index)
                         builds.append((time.perf_counter() - started) * 1000)
+                        check_cancelled()
                         index_bytes = admin.execute(
                             'SELECT pg_relation_size(%s::regclass)',
                             (schema + '.' + INDEX_NAME,),
@@ -114,6 +135,7 @@ def run(config, settings, progress):
                     measurements, seconds, plan = phase(prefix + f'Measuring {kind}')
                     phases[kind].append((measurements, seconds, plan))
                     trial[kind] = summarize([value for _, value in measurements], seconds)
+                    check_cancelled()
                     admin.execute(sql.SQL('DROP TABLE {}').format(table))
                 trials.append(trial)
 
