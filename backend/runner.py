@@ -74,6 +74,7 @@ def run(config, settings, progress, *, stop=None):
                             # Roll back every operation so both phases use identical rows.
                             conn.execute('BEGIN')
                             try:
+                                check_cancelled()
                                 started = time.perf_counter()
                                 if write:
                                     # Distinct IDs avoid contention unrelated to the proposed index.
