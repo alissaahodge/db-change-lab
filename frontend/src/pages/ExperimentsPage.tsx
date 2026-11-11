@@ -22,6 +22,7 @@ type ExperimentsPageProps = {
   setSelected: Dispatch<SetStateAction<string | null>>;
   view: ExperimentView;
   setView: (view: ExperimentView) => void;
+  cancelRun: (id: string) => Promise<void>;
   editRun: (settings: ExperimentSettings) => void;
 };
 
@@ -61,6 +62,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
           key={props.current?.id}
           current={props.current}
           editRun={props.editRun}
+          cancelRun={props.cancelRun}
         />
       )}
       {props.view === 'History' && (

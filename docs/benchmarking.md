@@ -10,7 +10,7 @@
 - Overall latency summaries pool operation samples. Overall throughput divides total operations by total elapsed phase time. The results table shows median latency, p95 latency, and throughput for each trial. Build time is the median across candidate builds; index size and plans are from the final trial.
 - Execution plans are sampled separately using customer `1` in the preset or the submitted custom read; they do not represent every operation. `EXPLAIN ANALYZE` itself executes the query.
 - Synthetic uniform customers and correlated generated data do not reproduce a production workload's distributions or cardinalities.
-- Statement timeout is 15 seconds; lock timeout is 2 seconds. There is currently no overall job timeout/cancel control.
+- Statement timeout is 15 seconds; lock timeout is 2 seconds. Cancel run stops at the next checkpoint between database operations. The runner waits for in-flight work and removes the temporary schema before marking the run cancelled.
 - A hard process termination may leave a `lab_<uuid>` schema behind. Restarted in-flight jobs are marked interrupted; automatic orphan recovery is not implemented.
 - Custom workloads repeat a single read with fixed parameters. The server accepts a restricted SELECT and column-only CREATE INDEX grammar and compiles both against the generated orders table.
 - Arbitrary SQL, schema import, index suggestions, lock-contention analysis, and actual customer-data cloning are not implemented.

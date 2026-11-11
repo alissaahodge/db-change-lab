@@ -136,3 +136,49 @@ def test_invalid_lab_port_returns_actionable_error(monkeypatch):
     response = client.post('/api/experiments', json={})
     assert response.status_code == 409
     assert 'LAB_DB_PORT' in response.json()['detail']
+
+
+def test_cancellation_keeps_run_active_until_cleanup_finishes(monkeypatch, tmp_path):
+    import sqlite3
+    from threading import Event
+
+    db_path = tmp_path / 'runs.sqlite3'
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            'CREATE TABLE experiments (id TEXT PRIMARY KEY, created TEXT DEFAULT CURRENT_TIMESTAMP, '
+            'state TEXT, stage TEXT, result TEXT)'
+        )
+    monkeypatch.setattr(module, 'DB', db_path)
+    monkeypatch.setenv('LAB_DB_HOST', 'localhost')
+    monkeypatch.setenv('LAB_DB_PASSWORD', 'test-input')
+    cleaning = Event()
+    finish = Event()
+
+    def fake_run(config, settings, progress, *, stop):
+        progress('Measuring baseline')
+        assert stop.wait(timeout=5)
+        progress('Cleaning up temporary schema')
+        cleaning.set()
+        assert finish.wait(timeout=5)
+        raise module.ExperimentCancelled
+
+    monkeypatch.setattr(module, 'run', fake_run)
+    response = client.post('/api/experiments', json={})
+    assert response.status_code == 202
+    run_id = response.json()['id']
+    path = f'/api/experiments/{run_id}/cancel'
+    try:
+        assert client.post(path).status_code == 202
+        assert cleaning.wait(timeout=5)
+        assert client.post(path).status_code == 202
+        assert client.get('/api/experiments').json()[0]['state'] == 'cancelling'
+        assert client.post('/api/experiments', json={}).status_code == 409
+    finally:
+        finish.set()
+        module.pool.submit(lambda: None).result(timeout=5)
+
+    run = client.get('/api/experiments').json()[0]
+    assert run['state'] == 'cancelled'
+    assert run['result'] is None
+    assert client.post(path).status_code == 409
+    assert client.post('/api/experiments/unknown/cancel').status_code == 404

@@ -25,6 +25,7 @@ it('shows the proposed index as readable SQL on two lines', () => {
     view: 'New experiment',
     setView: vi.fn(),
     editRun: vi.fn(),
+    cancelRun: vi.fn(),
   };
   render(<ExperimentsPage {...props} />);
   expect(screen.getByText(/CREATE INDEX/).textContent).toBe(
@@ -104,6 +105,7 @@ it('keeps run, history selection, and plan disclosure wired through the page', a
         setSelected={setSelected}
         view={view}
         setView={setView}
+        cancelRun={vi.fn()}
         editRun={(saved) => {
           setSettings(saved);
           setView('New experiment');

@@ -81,7 +81,9 @@ export default function App() {
   const current = runs.find((experiment) => experiment.id === selected) ?? runs[0];
   const busy =
     sending ||
-    runs.some((experiment) => ['queued', 'running'].includes(experiment.state));
+    runs.some((experiment) =>
+      ['queued', 'running', 'cancelling'].includes(experiment.state),
+    );
 
   async function start() {
     historyRevision.current += 1;
@@ -104,6 +106,22 @@ export default function App() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function cancelRun(id: string) {
+    await api<{ state: 'cancelling' }>(`experiments/${id}/cancel`, {});
+    historyRevision.current += 1;
+    setRuns((previous) =>
+      previous.map((run) =>
+        run.id === id && ['queued', 'running'].includes(run.state)
+          ? {
+              ...run,
+              state: 'cancelling',
+              stage: 'Waiting for active database work and schema cleanup',
+            }
+          : run,
+      ),
+    );
   }
 
   async function test(e: React.FormEvent) {
@@ -203,6 +221,7 @@ export default function App() {
               start={start}
               error={error}
               current={current}
+              cancelRun={cancelRun}
               runs={runs}
               setSelected={setSelected}
               view={view}
